@@ -14,6 +14,22 @@ export default defineConfig({
     },
   },
   ssr: {
-    noExternal: ["@mui/material", "@mui/icons-material"],
+    noExternal: [
+      "@mui/material",
+      "@mui/icons-material",
+      "@mui/system",
+      "@mui/base",
+      "@emotion/react",
+      "@emotion/styled",
+      "@emotion/cache",
+    ],
+  },
+  optimizeDeps: {
+    include: [
+      "@mui/material",
+      "@mui/icons-material",
+      "@emotion/react",
+      "@emotion/styled",
+    ],
   },
 });

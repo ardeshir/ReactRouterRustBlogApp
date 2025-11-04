@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   frontend:
@@ -33,8 +32,9 @@ services:
       - ./backend:/app
       - cargo-cache:/usr/local/cargo/registry
       - target-cache:/app/target
+      - db-data:/app/data 
     environment:
-      - DATABASE_URL=sqlite:///app/database.db
+      - DATABASE_URL=sqlite:///app/data/database.db
       - RUST_LOG=info
       - RUST_BACKTRACE=1
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
@@ -48,3 +48,4 @@ networks:
 volumes:
   cargo-cache:
   target-cache:
+  db-data: 

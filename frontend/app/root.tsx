@@ -7,11 +7,7 @@ import {
 } from "react-router";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import { CacheProvider } from "@emotion/react";
-import createEmotionCache from "./utils/createEmotionCache";
 import theme from "./theme";
-
-const cache = createEmotionCache();
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,12 +25,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body>
-        <CacheProvider value={cache}>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {children}
-          </ThemeProvider>
-        </CacheProvider>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {children}
+        </ThemeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

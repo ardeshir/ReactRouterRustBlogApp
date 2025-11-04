@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create database connection pool
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite://database.db".to_string());
+        .unwrap_or_else(|_| "sqlite:///app/data/database.db".to_string());
 
     tracing::info!("Connecting to database: {}", database_url);
 
@@ -77,7 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Server listening on {}", addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .await
+        .expect("Server failed");
 
     Ok(())
 }
