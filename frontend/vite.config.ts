@@ -13,23 +13,9 @@ export default defineConfig({
       clientPort: 3000,
     },
   },
-  ssr: {
-    noExternal: [
-      "@mui/material",
-      "@mui/icons-material",  // Critical for icons!
-      "@mui/system",
-      "@mui/styled-engine",
-      "@emotion/react",
-      "@emotion/styled",
-      "@emotion/cache",
-    ],
-  },
-  optimizeDeps: {
-    include: [
-      "@mui/material",
-      "@mui/icons-material",
-      "@emotion/react",
-      "@emotion/styled",
-    ],
+  resolve: {
+    alias: {
+       "~": "/app",
+    }
   },
 });

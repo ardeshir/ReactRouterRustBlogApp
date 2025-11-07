@@ -3,12 +3,6 @@ import type { EntryContext } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";
 import { ServerRouter } from "react-router";
 import { renderToPipeableStream } from "react-dom/server";
-import { CacheProvider } from "@emotion/react";
-import createEmotionServer from "@emotion/server/create-instance";
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
-import createEmotionCache from "./createEmotionCache";
-import theme from "./theme";
 
 export default function handleRequest(
   request: Request,
@@ -17,40 +11,25 @@ export default function handleRequest(
   routerContext: EntryContext
 ) {
   return new Promise((resolve, reject) => {
-    // Create fresh cache for each request (critical!)
-    const cache = createEmotionCache();
-    const { extractCriticalToChunks, constructStyleTagsFromChunks } =
-      createEmotionServer(cache);
-
-    let didError = false;
-
     const { pipe, abort } = renderToPipeableStream(
-      <CacheProvider value={cache}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <ServerRouter context={routerContext} url={request.url} />
-        </ThemeProvider>
-      </CacheProvider>,
+      <ServerRouter context={routerContext} url={request.url} />,
       {
         onShellReady() {
           responseHeaders.set("Content-Type", "text/html");
           const body = new PassThrough();
           const stream = createReadableStreamFromReadable(body);
-          
+
           resolve(
             new Response(stream, {
               headers: responseHeaders,
-              status: didError ? 500 : responseStatusCode,
+              status: responseStatusCode,
             })
           );
+
           pipe(body);
         },
         onShellError(error: unknown) {
           reject(error);
-        },
-        onError(error: unknown) {
-          didError = true;
-          console.error(error);
         },
       }
     );

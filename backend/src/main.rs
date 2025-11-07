@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderValue, Method, StatusCode},
+    http::{HeaderValue, Method, StatusCode, header},
     routing::{get, post},
     Json, Router,
 };
@@ -101,8 +101,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "http://frontend:3000".parse::<HeaderValue>().unwrap(),
         ])
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers(Any)
-        .allow_credentials(true);
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            ]);
 
     // Build router
     let app = Router::new()

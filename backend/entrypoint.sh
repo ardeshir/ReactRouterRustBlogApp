@@ -2,17 +2,17 @@
 set -e
 
 # Ensure data directory exists with proper permissions
-mkdir -p /app/data
-chmod 777 /app/data
+mkdir -p /tmp
+chmod 777 /tmp
 
 # Check if we can write to the directory
-if [ ! -w /app/data ]; then
-    echo "ERROR: Cannot write to /app/data"
-    ls -la /app/
+if [ ! -w /tmp ]; then
+    echo "ERROR: Cannot write to /tmp"
+    ls -la /tmp/
     exit 1
 fi
 
-echo "Data directory ready: /app/data"
+echo "Data directory ready: /tmp"
 
 # Execute the main command
 exec "$@"

@@ -4,19 +4,23 @@ WORKDIR /app
 
 # Install development dependencies
 RUN apt-get update && \
-    apt-get install -y pkg-config libssl-dev && \
+    apt-get install -y pkg-config libssl-dev sqlite3 && \
     cargo install cargo-watch && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /app/data/ && chmod 777 /app/data
+# Copy entrypoint FIRST, before copying everything else
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
-# Copy source
+# Now copy the rest of the source
 COPY . .
+
+# Create data directory
+RUN mkdir -p /app/data && chmod 777 /app/data
 
 # Expose port
 EXPOSE 3001
 
+# Use absolute path for entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["cargo", "watch", "-x", "run"]
