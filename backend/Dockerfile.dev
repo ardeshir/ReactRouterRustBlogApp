@@ -8,6 +8,7 @@ RUN apt-get update && \
     cargo install cargo-watch && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /app/data/ && chmod 777 /app/data
 # Copy source
 COPY . .
 

@@ -1,6 +1,5 @@
 # Stage 1: Recipe planner
-FROM rustlang/rust:nightly-slim
-
+FROM rustlang/rust:nightly-slim As chef
 WORKDIR /app
 
 FROM chef AS planner

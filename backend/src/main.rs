@@ -35,7 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Database URL: {}", database_url);
 
     // Create data directory if it doesn't exist
-    std::fs::create_dir_all("/app/data").ok();
+    std::fs::create_dir_all("/app/data")
+        .map_err(|e| {
+            tracing::error!("Failed to create data directory: {}", e);
+            e
+        })?;
 
     // CRITICAL: Use connection pool with retry logic
     let db = SqlitePoolOptions::new()
