@@ -34,12 +34,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Database URL: {}", database_url);
 
+   // Around line 30, replace directory creation with:
+
+   // Ensure data directory exists with retries
+   for attempt in 1..=3 {
+       match std::fs::create_dir_all("/app/data") {
+         Ok(_) => {
+            // Set permissions (Unix only)
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = std::fs::Permissions::from_mode(0o777);
+                std::fs::set_permissions("/app/data", perms).ok();
+            }
+            tracing::info!("Data directory ready");
+            break;
+         }
+          Err(e) if attempt < 3 => {
+            tracing::warn!("Attempt {} to create data directory failed: {}", attempt, e);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+         }
+          Err(e) => {
+            tracing::error!("Failed to create data directory after 3 attempts: {}", e);
+            return Err(e.into());
+         }
+      }
+    }
+
     // Create data directory if it doesn't exist
-    std::fs::create_dir_all("/app/data")
-        .map_err(|e| {
-            tracing::error!("Failed to create data directory: {}", e);
-            e
-        })?;
+    // std::fs::create_dir_all("/app/data")
+    //    .map_err(|e| {
+    //        tracing::error!("Failed to create data directory: {}", e);
+    //        e
+    //    })?;
 
     // CRITICAL: Use connection pool with retry logic
     let db = SqlitePoolOptions::new()
