@@ -1,18 +1,12 @@
 #!/bin/sh
 set -e
 
-# Ensure data directory exists with proper permissions
+# Create database location
 mkdir -p /tmp
-chmod 777 /tmp
+touch /tmp/blog.db
+chmod 666 /tmp/blog.db
 
-# Check if we can write to the directory
-if [ ! -w /tmp ]; then
-    echo "ERROR: Cannot write to /tmp"
-    ls -la /tmp/
-    exit 1
-fi
-
-echo "Data directory ready: /tmp"
+echo "Database file ready at /tmp/blog.db"
 
 # Execute the main command
 exec "$@"
