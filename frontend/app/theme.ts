@@ -1,24 +1,16 @@
 import { createTheme } from "@mui/material/styles";
+import { red } from "@mui/material/colors";
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#1976d2",
+      main: "#556cd6",
     },
     secondary: {
-      main: "#dc004e",
+      main: "#19857b",
     },
-  },
-  typography: {
-    fontFamily: "Roboto, Arial, sans-serif",
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-        },
-      },
+    error: {
+      main: red.A400,
     },
   },
 });

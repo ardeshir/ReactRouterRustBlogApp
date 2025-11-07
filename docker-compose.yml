@@ -1,51 +1,49 @@
-
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blog-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=sqlite:///app/data/blog.db
+      - RUST_LOG=info
+      - PORT=3001
+    volumes:
+      - backend-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - blog-network
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: blog-frontend
-    restart: unless-stopped
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
-      - CHOKIDAR_USEPOLLING=true
-    networks:
-      - blog-network
+      - NODE_ENV=production
+      - PORT=3000
+      # Important: Use service name for backend URL
+      - VITE_API_URL=http://backend:3001
     depends_on:
-      - backend
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: dev
-    container_name: blog-backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - cargo-cache:/usr/local/cargo/registry
-      - target-cache:/app/target
-      - db-data:/app/data 
-    environment:
-      - DATABASE_URL=sqlite:///app/data/database.db
-      - RUST_LOG=info
-      - RUST_BACKTRACE=1
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
     networks:
       - blog-network
+
+volumes:
+  backend-data:
 
 networks:
   blog-network:
     driver: bridge
-
-volumes:
-  cargo-cache:
-  target-cache:
-  db-data: 

@@ -1,0 +1,17 @@
+FROM rustlang/rust:nightly-slim
+
+WORKDIR /app
+
+# Install development dependencies
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    cargo install cargo-watch && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY . .
+
+# Expose port
+EXPOSE 3001
+
+CMD ["cargo", "watch", "-x", "run"]

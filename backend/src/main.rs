@@ -1,21 +1,14 @@
 use axum::{
-    routing::{get, post, put, delete},
-    Router,
+    extract::{Path, State},
+    http::{HeaderValue, Method, StatusCode},
+    routing::{get, post},
+    Json, Router,
 };
+use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::sync::Arc;
-use tower_http::{
-    cors::{CorsLayer, Any},
-    trace::TraceLayer,
-};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-mod models;
-mod handlers;
-mod error;
-mod schema;
-
-use error::AppError;
+use std::time::Duration;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::TraceLayer;
 
 #[derive(Clone)]
 struct AppState {
@@ -24,66 +17,179 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "info,sqlx=warn".into())
-        ))
-        .with(tracing_subscriber::fmt::layer())
+    // Initialize tracing FIRST to see errors
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
         .init();
 
-    // Load environment variables
+    tracing::info!("Starting blog backend server...");
+
+    // Load environment variables (non-fatal if missing)
     dotenvy::dotenv().ok();
 
-    // Create database connection pool
+    // Get database URL with fallback
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:///app/data/database.db".to_string());
+        .unwrap_or_else(|_| "sqlite:///app/data/blog.db".to_string());
 
-    tracing::info!("Connecting to database: {}", database_url);
+    tracing::info!("Database URL: {}", database_url);
 
-    let pool = SqlitePoolOptions::new()
-        .max_connections(10)
+    // Create data directory if it doesn't exist
+    std::fs::create_dir_all("/app/data").ok();
+
+    // CRITICAL: Use connection pool with retry logic
+    let db = SqlitePoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
         .connect(&database_url)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to connect to database: {}", e);
+            e
+        })?;
 
-    // Run migrations
-    tracing::info!("Running migrations...");
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    tracing::info!("Database connected successfully");
 
-    let state = Arc::new(AppState { db: pool });
+    // Run migrations (embedded in binary)
+    sqlx::migrate!("./migrations")
+        .run(&db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to run migrations: {}", e);
+            e
+        })?;
+
+    tracing::info!("Migrations applied successfully");
+
+    let state = AppState { db };
+
+    // CORS configuration - adjust origins for your needs
+    let cors = CorsLayer::new()
+        .allow_origin([
+            "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+            "http://frontend:3000".parse::<HeaderValue>().unwrap(),
+        ])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any)
+        .allow_credentials(true);
 
     // Build router
     let app = Router::new()
+        .route("/", get(root))
         .route("/health", get(health_check))
-        .route("/posts", get(handlers::list_posts).post(handlers::create_post))
-        .route("/posts/:id", 
-            get(handlers::get_post)
-            .put(handlers::update_post)
-            .delete(handlers::delete_post)
-        )
+        .route("/api/posts", get(list_posts).post(create_post))
+        .route("/api/posts/:id", get(get_post))
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any)
-        )
         .with_state(state);
 
-    // Start server
-    let addr = "0.0.0.0:8000";
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    // CRITICAL: Bind to 0.0.0.0, not 127.0.0.1 for Docker!
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "3001".to_string());
+    let addr = format!("0.0.0.0:{}", port);
 
-    tracing::info!("Server listening on {}", addr);
+    tracing::info!("Listening on {}", addr);
 
-    axum::serve(listener, app)
+    let listener = tokio::net::TcpListener::bind(&addr)
         .await
-        .expect("Server failed");
+        .map_err(|e| {
+            tracing::error!("Failed to bind to {}: {}", addr, e);
+            e
+        })?;
+
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
 
-async fn health_check() -> &'static str {
-    "OK"
+async fn root() -> &'static str {
+    "Blog API Server"
+}
+
+async fn health_check() -> StatusCode {
+    StatusCode::OK
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+struct Post {
+    id: i64,
+    title: String,
+    content: String,
+    author: String,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreatePost {
+    title: String,
+    content: String,
+    author: String,
+}
+
+async fn list_posts(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Post>>, (StatusCode, String)> {
+    let posts = sqlx::query_as::<_, Post>(
+        "SELECT id, title, content, author, created_at FROM posts ORDER BY created_at DESC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    Ok(Json(posts))
+}
+
+async fn create_post(
+    State(state): State<AppState>,
+    Json(payload): Json<CreatePost>,
+) -> Result<(StatusCode, Json<Post>), (StatusCode, String)> {
+    let result = sqlx::query(
+        "INSERT INTO posts (title, content, author) VALUES (?1, ?2, ?3)"
+    )
+    .bind(&payload.title)
+    .bind(&payload.content)
+    .bind(&payload.author)
+    .execute(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    let id = result.last_insert_rowid();
+
+    let post = sqlx::query_as::<_, Post>(
+        "SELECT id, title, content, author, created_at FROM posts WHERE id = ?1"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    Ok((StatusCode::CREATED, Json(post)))
+}
+
+async fn get_post(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Post>, (StatusCode, String)> {
+    let post = sqlx::query_as::<_, Post>(
+        "SELECT id, title, content, author, created_at FROM posts WHERE id = ?1"
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?
+    .ok_or_else(|| (StatusCode::NOT_FOUND, "Post not found".to_string()))?;
+
+    Ok(Json(post))
 }

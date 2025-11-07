@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: blog-backend-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=sqlite:///app/data/blog.db
+      - RUST_LOG=debug
+      - PORT=3001
+    volumes:
+      - ./backend:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+      - backend-data:/app/data
+    command: cargo watch -x run
+    networks:
+      - blog-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: blog-frontend-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://backend:3001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    depends_on:
+      - backend
+    networks:
+      - blog-network
+
+volumes:
+  cargo-cache:
+  target-cache:
+  backend-data:
+
+networks:
+  blog-network:
+    driver: bridge
